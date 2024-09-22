@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLtore</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgb(255, 255, 255);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .promo-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background-color: rgba(255, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .category-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="loaderOverlay" class="loader-overlay" style="display: none;">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow mb-4">
+        <div class="container mx-auto p-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-800">Welcome to MLstore</h1>
+            <div class="flex space-x-4">
+                <a href="index.html" class="text-gray-600 hover:text-gray-800">Home</a>
+                <a href="categories.html" class="text-gray-600 hover:text-gray-800">Categories</a>
+                <a href="contact.html" class="text-gray-600 hover:text-gray-800">Contact Us</a>
+            </div>
+            <input type="text" id="searchInput" placeholder="Search products..." class="p-2 border border-gray-300 rounded-lg" onkeyup="handleSearch()" />
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h2 id="categoryTitle" class="text-2xl font-bold text-gray-800 mb-4">Category Products</h2>
+        <div id="sheetData" class="mt-4"></div>
+    </div>
+
+    <!-- Modal -->
+    <div id="productModal" class="modal hidden"></div>
+
+    <!-- Footer -->
+    <footer class="bg-white shadow mt-6">
+        <div class="container mx-auto p-4 flex justify-between items-center">
+            <p class="text-gray-600">&copy; 2024 MLstore. All rights reserved.</p>
+            <div class="flex space-x-4">
+                <a href="contact.html" class="text-gray-600 hover:text-gray-800">Privacy Policy</a>
+                <a href="contact.html" class="text-gray-600 hover:text-gray-800">Terms of Service</a>
+                <a href="contact.html" class="text-gray-600 hover:text-gray-800">Contact Us</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        let products = [];
+
+        function fetchProducts() {
+            const apiKey = 'AIzaSyAyajykXGFXskr9cJW3GLzRCEbIt8RPpgE';
+            const sheetId = '1nI6QcGps_VIthtOaq2FzSH3WXX_nwQaNEkssJXiPIo8';
+            const range = 'Feuille 1!A2:H';  
+
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`;
+
+            document.getElementById('loaderOverlay').style.display = 'flex';
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    products = data.values || [];
+                    displayProductsByCategory();
+                })
+                .catch(error => console.error('Error fetching data:', error))
+                .finally(() => {
+                    document.getElementById('loaderOverlay').style.display = 'none';
+                });
+        }
+
+        function displayProductsByCategory() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const selectedCategory = urlParams.get('category') || 'All Products';
+            document.getElementById('categoryTitle').innerText = selectedCategory;
+
+            const filteredProducts = products.filter(product => product[7].toLowerCase() === selectedCategory.toLowerCase());
+
+            if (filteredProducts.length === 0) {
+                document.getElementById('sheetData').innerHTML = '<div class="text-center">No products found in this category.</div>';
+                return;
+            }
+
+            let output = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">';
+            filteredProducts.forEach(row => {
+                const [id, name, price, picture, description, stock, promo, category] = row;
+                const isInStock = parseInt(stock) > 0;
+                const shortDescription = description.length > 100 ? description.substring(0, 100) + '...' : description;
+
+                let promoBadge = '';
+                let displayedPrice = price;
+                let oldPrice = '';
+
+                if (parseInt(promo) > 0) {
+                    const discount = parseInt(promo);
+                    const newPrice = price * (1 - discount / 100);
+                    displayedPrice = newPrice.toFixed(2);
+                    oldPrice = `<p class="text-gray-400 line-through">$${price}</p>`;
+                    promoBadge = `<span class="promo-badge">-${discount}%</span>`;
+                }
+
+                const categoryColor = '#2c85f8cc';
+                const categoryBadge = `<span class="category-badge" style="background-color:${categoryColor};">${category}</span>`;
+
+                output += `
+                    <div class="bg-white border border-gray-200 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer relative" onclick="goToProductPage('${id}')">
+                        ${promoBadge}
+                        ${categoryBadge}
+                        <img src="${picture}" alt="${name}" class="w-full h-48 object-cover rounded-t-lg transition-opacity duration-300 ${isInStock ? '' : 'opacity-50'}">
+                        <div class="p-4">
+                            <h2 class="text-lg font-semibold text-gray-800">${name}</h2>
+                            ${isInStock ? 
+                                `<p class="text-green-600 font-bold text-xl">$${displayedPrice}</p>${oldPrice}` : 
+                                `<p class="text-red-600 font-bold text-xl">Out of Stock</p>`}
+                            <p class="text-gray-600 text-sm">${shortDescription}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            output += '</div>';
+            document.getElementById('sheetData').innerHTML = output;
+        }
+
+        function goToProductPage(id) {
+            window.location.href = `product.html?id=${id}`;
+        }
+        
+
+
+
+
+
+        function handleSearch() {
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredCategories = products.filter(product => product[1].toLowerCase().includes(searchTerm) || product[7].toLowerCase().includes(searchTerm));
+
+            if (filteredCategories.length === 0) {
+                document.getElementById('sheetData').innerHTML = '<div class="text-center">No products found.</div>';
+                return;
+            }
+
+            let output = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">';
+            filteredCategories.forEach(row => {
+                const [id, name, price, picture, description, stock, promo, category] = row;
+                const isInStock = parseInt(stock) > 0;
+                const shortDescription = description.length > 100 ? description.substring(0, 100) + '...' : description;
+
+                let promoBadge = '';
+                let displayedPrice = price;
+                let oldPrice = '';
+
+                if (parseInt(promo) > 0) {
+                    const discount = parseInt(promo);
+                    const newPrice = price * (1 - discount / 100);
+                    displayedPrice = newPrice.toFixed(2);
+                    oldPrice = `<p class="text-gray-400 line-through">$${price}</p>`;
+                    promoBadge = `<span class="promo-badge">-${discount}%</span>`;
+                }
+
+                const categoryColor = '#2c85f8cc';
+                const categoryBadge = `<span class="category-badge" style="background-color:${categoryColor};">${category}</span>`;
+
+                output += `
+                    <div class="bg-white border border-gray-200 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer relative" onclick="goToProductPage('${id}')">
+                        ${promoBadge}
+                        ${categoryBadge}
+                        <img src="${picture}" alt="${name}" class="w-full h-48 object-cover rounded-t-lg transition-opacity duration-300 ${isInStock ? '' : 'opacity-50'}">
+                        <div class="p-4">
+                            <h2 class="text-lg font-semibold text-gray-800">${name}</h2>
+                            ${isInStock ? 
+                                `<p class="text-green-600 font-bold text-xl">$${displayedPrice}</p>${oldPrice}` : 
+                                `<p class="text-red-600 font-bold text-xl">Out of Stock</p>`}
+                            <p class="text-gray-600 text-sm">${shortDescription}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            output += '</div>';
+            document.getElementById('sheetData').innerHTML = output;
+
+           
+        }
+
+        window.onload = fetchProducts;
+    </script>
+</body>
+</html>
